@@ -10,6 +10,13 @@ Cloud Video Kit follows a module architecture. Depending on your plan and needs,
 - [Player](https://developers.videokit.cloud/player/API-player) - Guides on how to stream assets created in Cloud Video Kit
 - DRM - Protect the video content with industry best encryption methods
 
+# Installation
+Sample require node in version 18 or higher
+
+Installation steps:
+1. Type npm install in terminal
+2. Run `npm run start command`
+
 # Sample
 
 The provided sample application demonstrates how to call the Cloud Video Kit REST api. The application includes an Express.js web server responsible for generating a Cloud Video Kit access token for the REST API and serving the VOD details webpage.
