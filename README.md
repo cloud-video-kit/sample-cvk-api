@@ -15,7 +15,7 @@ Sample require node in version 18 or higher
 
 Installation steps:
 1. Type npm install in terminal
-2. Run `npm run start command`
+2. Run `npm run start` command
 
 # Sample
 
