@@ -5,12 +5,13 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-const { PORT, CLIENT_ID, CLIENT_SECRET, CLIENT_SUBDOMAIN } = process.env;
+const { PORT, CLIENT_ID, CLIENT_SECRET, CLIENT_SUBDOMAIN, OAUTH_ENDPOINT } =
+  process.env;
 
 const app = express();
 const port = PORT || 8080;
 
-if (!CLIENT_ID || !CLIENT_SECRET || !CLIENT_SUBDOMAIN) {
+if (!CLIENT_ID || !CLIENT_SECRET || !CLIENT_SUBDOMAIN || !OAUTH_ENDPOINT) {
   console.log("fill .env file");
 
   return;
@@ -37,7 +38,7 @@ async function getAccessToken() {
 
   const body = urlSearchParams.toString();
   const reqTimestamp = new Date();
-  const response = await fetch("https://auth.videokit.cloud/oauth/token", {
+  const response = await fetch(OAUTH_ENDPOINT, {
     method: "POST",
     body,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -82,21 +83,44 @@ function getHlsManifest(vod) {
 }
 
 app.get("/", async function (req, res) {
+  const index = fs.readFileSync(path.join(__dirname, "index.html"), {
+    encoding: "utf8",
+  });
+
+  return res.send(index);
+});
+
+app.get("/vod", async function (req, res) {
   const accessToken = await getAccessToken();
   const vods = await getVods(accessToken);
 
   const nonProtectedVod = getFirstNonProtectedVod(vods);
-  const title = nonProtectedVod.metadata.FriendlyName;
+  const title = nonProtectedVod.title;
 
   const hlsManifestUrl = getHlsManifest(nonProtectedVod);
 
-  let index = fs.readFileSync(path.join(__dirname, "index.html"), {
+  let index = fs.readFileSync(path.join(__dirname, "vod.html"), {
     encoding: "utf8",
   });
 
   if (hlsManifestUrl && title) {
     index = index.replace("%HLS_MANIFEST_URL%", hlsManifestUrl);
     index = index.replaceAll("%TITLE%", title);
+  }
+
+  return res.send(index);
+});
+
+app.get("/upload", async function (req, res) {
+  const accessToken = await getAccessToken();
+
+  let index = fs.readFileSync(path.join(__dirname, "upload.html"), {
+    encoding: "utf8",
+  });
+
+  if (accessToken) {
+    index = index.replace("%ACCESS_TOKEN%", accessToken);
+    index = index.replace("%CLIENT_SUBDOMAIN%", CLIENT_SUBDOMAIN);
   }
 
   return res.send(index);

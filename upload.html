@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multipart upload</title>
+  </head>
+  <body>
+    <label for="file">Choose file:</label>
+    <input type="file" id="file" name="file" />
+    <script>
+      const token = "%ACCESS_TOKEN%";
+      const clientSubdomain = "%CLIENT_SUBDOMAIN%";
+      const vodModuleUrl = `https://${clientSubdomain}.api.videokit.cloud/vod`;
+
+      const getSupportedFiletypes = async () => {
+        const response = await fetch(vodModuleUrl + "/filetypes", {
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+        });
+
+        const {
+          fileTypes: { Audio, Caption, Video },
+        } = await response.json();
+
+        return [Audio, Caption, Video].flat();
+      };
+
+      const startUpload = async ({ title, size, name }) => {
+        const response = await fetch(vodModuleUrl + "/files/start/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            friendlyName: title,
+            fileSize: size,
+            name: name,
+            metadata: {},
+          }),
+        });
+
+        console.log("Uploading started");
+
+        return await response.json();
+      };
+
+      const uploadPart = async ({ blob, url }) => {
+        return fetch(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "Access-Control-Allow-Origin": "*",
+          },
+          body: blob,
+        });
+      };
+
+      const getUploadUrlForPart = async ({ id, partNumber }) => {
+        const response = await fetch(
+          vodModuleUrl + `/files/${id}/part/${partNumber}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        return await response.json();
+      };
+
+      const uploadComplete = async ({ fileId, parts, uploadId }) => {
+        return fetch(vodModuleUrl + "/files/complete/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ fileId, parts, uploadId }),
+        });
+      };
+
+      const processChunk = async ({
+        fileName,
+        url,
+        blob,
+        partNumber,
+      }) => {
+        try {
+          const response = await uploadPart({ url, blob });
+          const eTag = response.headers.get("etag");
+
+          console.log(`Uploaded part ${partNumber} of ${fileName}`);
+
+          return { eTag, partNumber };
+        } catch (error) {
+          console.error(error);
+        }
+      };
+
+      const uploadFiles = async (file) => {
+        const fileName = file.name;
+
+        try {
+          const { fileId, multipartUrls, uploadId, partSize, partsCount } =
+            await startUpload({
+              title: file.name, // change this property if you want to name asset differently than the file
+              name: file.name,
+              size: file.size,
+            });
+
+          const itemsCountInSingleCounkGroup = multipartUrls.length;
+          const chunksGroupsCount = Math.ceil(
+            partsCount / itemsCountInSingleCounkGroup
+          );
+          let chunksToUpload = partsCount;
+          let multipartUrlsToUpload = multipartUrls;
+          let parts = [];
+
+          for (const groupIndex of Array(chunksGroupsCount)
+            .fill(undefined)
+            .keys()) {
+            if (groupIndex !== 0) {
+              const nextChunkGroupLenght = Math.min(
+                itemsCountInSingleCounkGroup,
+                chunksToUpload
+              );
+              const nextPartsUrls = await Promise.all(
+                Array(nextChunkGroupLenght)
+                  .fill(undefined)
+                  .map((_, index) =>
+                    getUploadUrlForPart({
+                      id: fileId,
+                      partNumber:
+                        groupIndex * itemsCountInSingleCounkGroup + index + 1,
+                    })
+                  )
+              );
+
+              multipartUrlsToUpload = nextPartsUrls
+                .filter(Boolean)
+                .map((item) => item.url);
+            }
+
+            const chunksData = multipartUrlsToUpload.map((url, index) => {
+              const blob = file.slice(
+                partSize * (groupIndex * itemsCountInSingleCounkGroup + index),
+                partSize *
+                  (groupIndex * itemsCountInSingleCounkGroup + index + 1)
+              );
+              return {
+                fileName,
+                url,
+                blob,
+                partNumber:
+                  groupIndex * itemsCountInSingleCounkGroup + index + 1,
+              };
+            });
+
+            const results = await Promise.all(
+              chunksData.map(processChunk)
+            );
+            parts = parts.concat(results);
+            chunksToUpload = chunksToUpload - chunksData.length;
+          }
+
+          if (!parts?.length) {
+            return;
+          }
+
+          await uploadComplete({ fileId, parts, uploadId });
+          console.log("Upload complete");
+        } catch (error) {
+          console.error(error);
+        }
+      };
+
+      (async () => {
+        const supportedFiletypes = await getSupportedFiletypes();
+        const input = document.getElementById("file");
+        input.setAttribute("accept", supportedFiletypes);
+        input.addEventListener("change", async () => {
+          if (input.files.length === 1) {
+            const file = input.files[0];
+            await uploadFiles(file);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

@@ -11,11 +11,13 @@ Cloud Video Kit follows a module architecture. Depending on your plan and needs,
 - DRM - Protect the video content with industry best encryption methods
 
 # Installation
+
 Sample require node in version 18 or higher
 
 Installation steps:
+
 1. Type npm install in terminal
-2. Run `npm run start` command
+2. Run `npm run start command`
 
 # Sample
 
@@ -32,7 +34,8 @@ Before starting the application, ensure that you have filled in your .env file.
 
 # How it works:
 
-1. The application creates an access token that is required for communication with the Cloud Video Kit REST api
+- Inital setup:
+  The server-side of the application generates an access token required for communication with the Cloud Video Kit REST API and then passes it to the front-end of the application.
 
 ```js
 async function getAccessToken() {
@@ -53,7 +56,26 @@ async function getAccessToken() {
 }
 ```
 
-2. The application fetches the latest 5 VODs (full documentation for VOD api you can find here: https://developers.videokit.cloud/vod/API-vod)
+# Upload File Example (`/upload`)
+
+1. The application retrieves a list of acceptable file extensions from Cloud Video Kit (`/vod/filetypes`).
+2. The uploading process begins on the frontend side by sending a `/vod/start` request with the file size, file name, and friendly name. In response, the frontend receives:
+   - `fileId`: a unique identifier for the file
+   - `partsCount`: the number of parts the file needs to be uploaded in
+   - `multipartUrls`: a list of URLs for uploading file parts. If the list is shorter than the `partsCount`, additional URLs need to be fetched from another endpoint.
+   - `uploadId`: a unique identifier for the upload
+   - `partSize`: the size of each file chunk to upload
+3. File parts are uploaded based on the initial request (`multipartUrls` field from `/vod/start` request).
+4. If `partsCount` is greater than the number of parts provided in the `multipartUrls` field, the missing URLs need to be downloaded from another endpoint. Fetch the missing URLs from `/files/FILE_ID/part/PART_NUMBER`.
+5. Upon uploading every part of the file, complete the process by sending a POST request to `/vod/files/complete/` with:
+   - `fileId`: the file ID
+   - `parts`: an array of objects containing properties `partNumber` and `eTag` from the response of every uploaded part.
+
+In the provided example, to expedite the process, multiple file parts are uploaded simultaneously.
+
+# Play vod example (/vods)
+
+1. The application fetches the latest 5 VODs (full documentation for VOD api you can find here: https://developers.videokit.cloud/vod/API-vod)
 
 ```js
 async function getVods(token) {
@@ -68,5 +90,5 @@ async function getVods(token) {
 }
 ```
 
-3. The application looks for unprotected VODs with HLS manifests
-4. If such a VOD is available, the VOD title and HLS manifest URL are added to the page returned by the server
+2. The application looks for unprotected VODs with HLS manifests
+3. If such a VOD is available, the VOD title and HLS manifest URL are added to the page returned by the server
