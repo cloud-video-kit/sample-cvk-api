@@ -107,16 +107,16 @@
         const fileName = file.name;
 
         try {
-          const { fileId, multipartUrls, uploadId, partSize, partsCount } =
+          const { fileId, multipartUrls, uploadId, partSize, partsCount, lastPartSize } =
             await startUpload({
               title: file.name, // change this property if you want to name asset differently than the file
               name: file.name,
               size: file.size,
             });
 
-          const itemsCountInSingleCounkGroup = multipartUrls.length;
+          const itemsCountInSingleCountGroup = multipartUrls.length;
           const chunksGroupsCount = Math.ceil(
-            partsCount / itemsCountInSingleCounkGroup
+            partsCount / itemsCountInSingleCountGroup
           );
           let chunksToUpload = partsCount;
           let multipartUrlsToUpload = multipartUrls;
@@ -127,7 +127,7 @@
             .keys()) {
             if (groupIndex !== 0) {
               const nextChunkGroupLenght = Math.min(
-                itemsCountInSingleCounkGroup,
+                itemsCountInSingleCountGroup,
                 chunksToUpload
               );
               const nextPartsUrls = await Promise.all(
@@ -137,7 +137,7 @@
                     getUploadUrlForPart({
                       id: fileId,
                       partNumber:
-                        groupIndex * itemsCountInSingleCounkGroup + index + 1,
+                        groupIndex * itemsCountInSingleCountGroup + index + 1,
                     })
                   )
               );
@@ -149,16 +149,27 @@
 
             const chunksData = multipartUrlsToUpload.map((url, index) => {
               const blob = file.slice(
-                partSize * (groupIndex * itemsCountInSingleCounkGroup + index),
+                partSize * (groupIndex * itemsCountInSingleCountGroup + index),
                 partSize *
-                  (groupIndex * itemsCountInSingleCounkGroup + index + 1)
+                  (groupIndex * itemsCountInSingleCountGroup + index + 1)
               );
+
+              const partNumber = groupIndex * itemsCountInSingleCountGroup + index + 1;
+              const isLastPart = partNumber === partsCount;
+
+              if (isLastPart) {
+                if (blob.size !== lastPartSize) {
+                  // If you are reimplementing this code in a different programming language, verify that the last chunk of data has the expected size
+                  throw new Error('Invalid last part size');
+                }
+              }
+
               return {
                 fileName,
                 url,
                 blob,
                 partNumber:
-                  groupIndex * itemsCountInSingleCounkGroup + index + 1,
+                  groupIndex * itemsCountInSingleCountGroup + index + 1,
               };
             });
 
