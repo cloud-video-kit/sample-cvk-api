@@ -1,60 +1,40 @@
-# Cloud Video Kit REST Api integration
+# Cloud Video Kit REST API integration
 
 # Introduction
 
 Cloud Video Kit follows a module architecture. Depending on your plan and needs, you will have access to all or only some of the modules. Each module has its own API. Cloud Video Kit provides APIs for the following modules:
 
-- [VOD](https://developers.videokit.cloud/vod/API-vod) - Upload video files, transcode them, and manage your VOD files
-- [Live](https://developers.videokit.cloud/live/API-live) - Manage live channels and events
-- [Recorder](https://developers.videokit.cloud/recorder/API-recorder) - Record live events and make highlights to build your video library out of live feed
-- [Player](https://developers.videokit.cloud/player/API-player) - Guides on how to stream assets created in Cloud Video Kit
-- DRM - Protect the video content with industry best encryption methods
+- [VOD](https://docs.videokit.cloud/api-reference/api-reference#vod-1) - Upload video files, transcode them, and manage your VOD files
+- [Live](https://docs.videokit.cloud/api-reference/api-reference#live-1) - Manage live channels and events
+- [Recorder](https://docs.videokit.cloud/api-reference/api-reference#recorder-1) - Record live events and make highlights to build your video library out of live feed
+- [Streaming](https://docs.videokit.cloud/api-reference/api-reference#streaming-1) - Guides on how to stream assets created in Cloud Video Kit
+- DRM - Protect the video content with industry-leading encryption methods
 
 # Installation
 
-Sample require node in version 18 or higher
+The sample requires Node version 18 or higher.
 
-Installation steps:
-
-1. Type npm install in terminal
-2. Run `npm run start command`
+Installation:
+```sh
+npm install
+npm run start
+```
 
 # Sample
 
-The provided sample application demonstrates how to call the Cloud Video Kit REST api. The application includes an Express.js web server responsible for generating a Cloud Video Kit access token for the REST API and serving the VOD details webpage.
+The provided sample application demonstrates how to call the Cloud Video Kit REST API. The application includes an Express.js web server responsible for forwarding calls to the Cloud Video Kit API. The frontend part of the application is a simple HTML page with JavaScript code that calls the server-side API.
 
 To call the service API, you will need the following information:
 
-- Client ID and Client Secret (required for generating an access token)
-- Client subdomain
-
-This data will be sent by Cloud Video Kit team.
+- API key - available at the [API Cheatsheet page](https://console.videokit.cloud/dashboard/api_cheatsheet)
+- tenant name
 
 Before starting the application, ensure that you have filled in your .env file.
 
 # How it works:
 
 - Inital setup:
-  The server-side of the application generates an access token required for communication with the Cloud Video Kit REST API and then passes it to the front-end of the application.
-
-```js
-async function getAccessToken() {
-  const urlSearchParams = new URLSearchParams();
-  urlSearchParams.set("client_id", "CLIENT_ID");
-  urlSearchParams.set("client_secret", "CLIENT_SECRET");
-  urlSearchParams.set("grant_type", "client_credentials");
-
-  const body = urlSearchParams.toString();
-  const response = await fetch("https://auth.videokit.cloud/oauth/token", {
-    method: "POST",
-    body,
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  });
-  const responseJson = await response.json();
-
-  return responseJson.access_token;
-}
-```
+  The server-side of the application works as a proxy and passes the request to the Cloud Video Kit API with the provided API key.
 
 # Upload File Example (`/upload`)
 
@@ -71,17 +51,17 @@ async function getAccessToken() {
    - `fileId`: the file ID
    - `parts`: an array of objects containing properties `partNumber` and `eTag` from the response of every uploaded part.
 
-In the provided example, to expedite the process, multiple file parts are uploaded simultaneously.
+In the provided example, multiple file parts are uploaded simultaneously to expedite the process.
 
-# Play vod example (/vods)
+# Play vod example (`/vods`)
 
-1. The application fetches the latest 5 VODs (full documentation for VOD api you can find here: https://developers.videokit.cloud/vod/API-vod)
+1. The application fetches the latest 5 VODs (full documentation for VOD API you can find here: https://docs.videokit.cloud/api-reference/api-reference#vod-1)
 
 ```js
 async function getVods(token) {
   const response = await fetch(
-    `https://CLIENT_SUBDOMAIN.api.videokit.cloud/vod/v1/assets?limit=5&page=1&sort=lastModificationDate&desc=true`,
-    { headers: { authorization: `Bearer ${token}` } }
+    `https://TENANT_NAME.api.videokit.cloud/vod/v1/assets?limit=5&page=1&sort=lastModificationDate&desc=true`,
+    { headers: { "X-Api-Key": API_KEY } }
   );
 
   const { items } = await response.json();

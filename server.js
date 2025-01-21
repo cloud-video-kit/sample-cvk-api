@@ -2,63 +2,25 @@ const path = require("path");
 const fs = require("fs");
 const express = require("express");
 const dotenv = require("dotenv");
+const proxy = require('express-http-proxy');
 
 dotenv.config();
 
-const { PORT, CLIENT_ID, CLIENT_SECRET, CLIENT_SUBDOMAIN, OAUTH_ENDPOINT } =
-  process.env;
+const { PORT, TENANT_NAME, API_KEY } = process.env;
 
 const app = express();
 const port = PORT || 8080;
 
-if (!CLIENT_ID || !CLIENT_SECRET || !CLIENT_SUBDOMAIN || !OAUTH_ENDPOINT) {
+if (!TENANT_NAME || !API_KEY) {
   console.log("fill .env file");
 
   return;
 }
 
-let accessTokenCached;
-let accessTokenCacheExpiration;
-
-async function getAccessToken() {
-  if (
-    accessTokenCached &&
-    accessTokenCacheExpiration &&
-    accessTokenCacheExpiration > new Date()
-  ) {
-    console.log("cached token");
-
-    return accessTokenCached;
-  }
-
-  const urlSearchParams = new URLSearchParams();
-  urlSearchParams.set("client_id", CLIENT_ID);
-  urlSearchParams.set("client_secret", CLIENT_SECRET);
-  urlSearchParams.set("grant_type", "client_credentials");
-
-  const body = urlSearchParams.toString();
-  const reqTimestamp = new Date();
-  const response = await fetch(OAUTH_ENDPOINT, {
-    method: "POST",
-    body,
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  });
-  const responseJson = await response.json();
-
-  const expirationSeconds = responseJson.expires_in;
-  accessTokenCacheExpiration = reqTimestamp.setSeconds(
-    reqTimestamp.getSeconds() + expirationSeconds
-  );
-  console.log({ expirationSeconds, accessTokenCacheExpiration });
-  accessTokenCached = responseJson.access_token;
-
-  return accessTokenCached;
-}
-
-async function getVods(token) {
+async function getVods() {
   const response = await fetch(
-    `https://${CLIENT_SUBDOMAIN}.api.videokit.cloud/vod/v1/assets?limit=5&page=1&sort=lastModificationDate&desc=true`,
-    { headers: { authorization: `Bearer ${token}` } }
+    `https://${TENANT_NAME}.api.videokit.cloud/vod/v1/assets?limit=5&page=1&sort=lastModificationDate&desc=true`,
+    { headers: { "X-Api-Key": API_KEY } }
   );
 
   const { items } = await response.json();
@@ -91,8 +53,7 @@ app.get("/", async function (req, res) {
 });
 
 app.get("/vod", async function (req, res) {
-  const accessToken = await getAccessToken();
-  const vods = await getVods(accessToken);
+  const vods = await getVods();
 
   const nonProtectedVod = getFirstNonProtectedVod(vods);
   const title = nonProtectedVod.title;
@@ -112,19 +73,20 @@ app.get("/vod", async function (req, res) {
 });
 
 app.get("/upload", async function (req, res) {
-  const accessToken = await getAccessToken();
-
   let index = fs.readFileSync(path.join(__dirname, "upload.html"), {
     encoding: "utf8",
   });
 
-  if (accessToken) {
-    index = index.replace("%ACCESS_TOKEN%", accessToken);
-    index = index.replace("%CLIENT_SUBDOMAIN%", CLIENT_SUBDOMAIN);
-  }
-
   return res.send(index);
 });
+
+app.use('/api', proxy(`https://${TENANT_NAME}.api.videokit.cloud`, {
+  proxyReqOptDecorator: function(proxyReqOpts, srcReq) {
+    proxyReqOpts.headers['X-Api-Key'] = API_KEY;
+
+    return proxyReqOpts;
+  }
+}));
 
 app.listen(port);
 
